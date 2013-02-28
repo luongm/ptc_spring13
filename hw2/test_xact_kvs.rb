@@ -5,7 +5,7 @@ require 'xact_kvs'
 
 class XKVS
 	include Bud
-	include TransactionalKVS
+	include TwoPLTransactionalKVS
 end
 
 class TestTransactionalKVS < Test::Unit::TestCase
@@ -28,6 +28,11 @@ class TestTransactionalKVS < Test::Unit::TestCase
 			assert_equal(1, res.reqid)
 		end
 
+		assert(1, @xkvs.granted_locks.length);
+		@xkvs.sync_do do
+			@xkvs.end_xact <+ [[1]]
+		end
+
 		@xkvs.sync_do do
 			@xkvs.xget <+ [[1, 'k1', 1]]
 		end
@@ -38,5 +43,9 @@ class TestTransactionalKVS < Test::Unit::TestCase
 			assert_equal(1, res.reqid)
 			assert_equal('v1', res.data)
 		end
+	end
+
+	def teardown
+		@xkvs.stop unless @xkvs.nil?
 	end
 end
