@@ -130,25 +130,36 @@ class TestLockManager < Test::Unit::TestCase
 
 	def test_releaselock_upgrade
 		# End Xact and perform a Lock upgrade
-		@ml.sync_do { @ml.request_lock <+ [ ["16", "I", :S], ["17", "I", :S] ] }
-		@ml.sync_do { @ml.end_xact <+ [ ["16"] ] }
-		@ml.sync_do { @ml.request_lock <+ [ ["17", "I", :X] ] }
-		tick(1)
+		@ml.sync_do { @ml.request_lock <+ [["16", "I", :S]] }
+		@ml.sync_do { @ml.request_lock <+ [["17", "I", :S]] }
+		@ml.sync_do { @ml.request_lock <+ [["17", "I", :X]] }
+		assert_equal(2, @ml.granted_locks.length)
 
+		@ml.sync_do { @ml.end_xact <+ [["16"]] }
+		tick 2
+
+		assert_equal(1, @ml.granted_locks.length)
+		assert_equal(0, @ml.waiting_locks.length)
 		@ml.granted_locks.each do |l|
 			if l.resource == "I"
 				assert_equal(l.xid, "17")
 				assert_equal(l.mode, :X)				
 			end
 		end
+
+		@ml.sync_do { @ml.request_lock <+ [["18", "I", :S]] }
+		tick
+
+		assert_equal(1, @ml.granted_locks.length)
+		assert_equal(1, @ml.waiting_locks.length)
 	end
 
 	def test_suddenend
 		# End a Xact when it still has pending granted_locks 
 		@ml.sync_do { @ml.request_lock <+ [ ["18", "I", :S], ["19", "I", :S], ["19", "J", :X] ] }
-		tick(1)
+		tick(3)
 		@ml.sync_do { @ml.request_lock <+ [ ["19", "I", :X], ["20", "J", :S] ] }
-		tick(1)
+		tick(2)
 
 		assert_equal(@ml.granted_locks.length, 3)
 		assert_equal(@ml.waiting_locks.length, 2)

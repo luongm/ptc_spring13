@@ -10,21 +10,26 @@ module TwoPhaseLockMgr
 	include LockMgrProtocol
 
 	state do
-		table :waiting_locks, [:xid, :resource] => [:mode]
-		table :granted_locks, [:xid, :resource] => [:mode]
+		table :waiting_locks, [:xid, :resource, :mode] => [:time]
+		table :granted_locks, [:xid, :resource] => [:mode, :time]
 
-		scratch :read_locks, [:xid, :resource] => [:mode]
-		scratch :write_locks, [:xid, :resource] => [:mode]
+		scratch :read_locks, [:xid, :resource] => [:mode, :time]
+		scratch :write_locks, [:xid, :resource] => [:mode, :time]
 
-		scratch :group_queue, [:resource] => [:xid]
-		scratch :group_queue_single, [:xid, :resource, :mode]
+		scratch :group_queue, [:xid, :resource, :mode, :time]
+		scratch :group_queue_single, [:xid, :resource, :mode, :time]
 
-		scratch :read_candidates, [:xid, :resource] => [:mode]
-		scratch :write_candidates, [:xid, :resource] => [:mode]
+		scratch :read_candidates, [:xid, :resource] => [:mode, :time]
+		scratch :write_candidates, [:xid, :resource] => [:mode, :time]
 
-		# scratch :can_upgrade, [:xid, :resource] => [:mode]
-		scratch :can_read, [:xid, :resource] => [:mode]
-		scratch :can_write, [:xid, :resource] => [:mode]
+		scratch :can_ignore, [:xid, :resource] => [:mode, :time]
+
+		scratch :upgradable, [:xid, :resource] => [:mode, :time]
+		scratch :same_resource, [:xid, :resource] => [:mode, :time]
+		scratch :can_upgrade, [:xid, :resource] => [:mode, :time]
+
+		scratch :can_read, [:xid, :resource] => [:mode, :time]
+		scratch :can_write, [:xid, :resource] => [:mode, :time]
 	end
 
 	bloom :set_up do
@@ -33,15 +38,39 @@ module TwoPhaseLockMgr
 	end
 
 	bloom :receive_new_requests do
-		waiting_locks <= request_lock
+		waiting_locks <= request_lock {|l| [l.xid, l.resource, l.mode, budtime] }
 
-		group_queue <= waiting_locks.group([:resource], choose(:xid))
-		group_queue_single <= (group_queue * waiting_locks).rights(:resource => :resource, :xid => :xid)
+		group_queue <= waiting_locks.argmin([:resource], :time)
+		group_queue_single <= group_queue.argagg(:choose, [:resource], :xid)
 	end
 
-	# bloom :upgrade_read_locks do
-	# 	can_upgrade <= (waiting_locks * read_locks).pairs(:xid => :xid, :resource => :resource) { |w, r| w }
-	# end
+	bloom :ignore_new_read_requests_if_write_locks_existed do
+		can_ignore <= (waiting_locks * write_locks).pairs(:xid => :xid, :resource => :resource) do |wait, write|
+			wait if wait.mode == :S
+		end
+
+		# output
+		lock_status <= can_ignore { |u| [u.xid, u.resource, :OK] }
+
+		# remove the write lock from waiting_locks
+		waiting_locks <- can_ignore
+	end
+
+	bloom :upgrade_read_lock_to_write_lock do
+		upgradable <= (waiting_locks * read_locks).pairs(:xid => :xid, :resource => :resource) do |w, r|
+			w if w.mode == :X
+		end
+		same_resource <= (upgradable * read_locks).pairs(:resource => :resource) do |u, r|
+			r if u.xid != r.xid
+		end
+		can_upgrade <= (upgradable * same_resource).outer(:xid => :xid) do |u, s|
+			u if same_resource.length == 0
+		end
+
+		# upgrade the granted lock and remove the waiting one
+		granted_locks <+- can_upgrade
+		waiting_locks <- can_upgrade
+	end
 
 	bloom :grant_read_locks do
 		# Add any requests that are waiting but not in success lock
@@ -49,7 +78,6 @@ module TwoPhaseLockMgr
 		can_read <= read_candidates.notin(write_locks, :resource => :resource)
 
 		# save read locks as acquired
-		# read_locks <+ can_read
 		granted_locks <+ can_read
 
 		# output
@@ -65,7 +93,6 @@ module TwoPhaseLockMgr
 		can_write <= write_candidates.notin(granted_locks, :resource => :resource)
 
 		# save write locks as acquired
-		# write_locks <+ can_write
 		granted_locks <+ can_write
 
 		# output
@@ -79,7 +106,5 @@ module TwoPhaseLockMgr
 		# remove from waiting list and all tables that store acquired locks
 		waiting_locks <- (waiting_locks * end_xact).lefts(:xid => :xid)
 		granted_locks <- (granted_locks * end_xact).lefts(:xid => :xid)
-		# read_locks <- (read_locks * end_xact).lefts(:xid => :xid)
-		# write_locks <- (write_locks * end_xact).lefts(:xid => :xid)
 	end
 end
