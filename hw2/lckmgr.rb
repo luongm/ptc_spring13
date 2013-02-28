@@ -6,7 +6,7 @@ module LockMgrProtocol
 	end
 end
 
-module TwoPhaseLockManager
+module TwoPhaseLockMgr
 	include LockMgrProtocol
 
 	state do
@@ -22,6 +22,7 @@ module TwoPhaseLockManager
 		scratch :read_candidates, [:xid, :resource] => [:mode]
 		scratch :write_candidates, [:xid, :resource] => [:mode]
 
+		# scratch :can_upgrade, [:xid, :resource] => [:mode]
 		scratch :can_read, [:xid, :resource] => [:mode]
 		scratch :can_write, [:xid, :resource] => [:mode]
 	end
@@ -37,6 +38,10 @@ module TwoPhaseLockManager
 		group_queue <= waiting_locks.group([:resource], choose(:xid))
 		group_queue_single <= (group_queue * waiting_locks).rights(:resource => :resource, :xid => :xid)
 	end
+
+	# bloom :upgrade_read_locks do
+	# 	can_upgrade <= (waiting_locks * read_locks).pairs(:xid => :xid, :resource => :resource) { |w, r| w }
+	# end
 
 	bloom :grant_read_locks do
 		# Add any requests that are waiting but not in success lock

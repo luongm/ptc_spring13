@@ -6,7 +6,7 @@ require 'lckmgr'
 
 class LockMgr
 	include Bud
-	include TwoPhaseLockManager
+	include TwoPhaseLockMgr
 end
 
 class TestLockManager < Test::Unit::TestCase
