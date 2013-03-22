@@ -15,7 +15,7 @@ class TestVoteCounter < Test::Unit::TestCase
   def setup
     @vb = VoteBox.new #(port: 12345, trace: true)
     @vb.run_bg
-    @vb.sync_do { @vb.set_requirements <+ [[:read, 3], [:write, 4]] }
+    @vb.sync_do { @vb.set_requirements <+ [[3, 4]] }
   end
 
   def teardown
@@ -23,8 +23,8 @@ class TestVoteCounter < Test::Unit::TestCase
   end
   
   def test_set_requirements
-    assert @vb.requirements.include?([:read, 3])
-    assert @vb.requirements.include?([:write, 4])
+    assert @vb.requirements.include?(3)
+    assert @vb.requirements.include?(4)
   end
 
   def test_waiting_for_enough_reads
