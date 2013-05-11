@@ -125,6 +125,18 @@ class TestKVS < Test::Unit::TestCase
 		assert_equal(@xkvs.get_requests.length, 0)
 	end
 
+	def test_get_then_put
+    # TODO broken test!
+		@xkvs.sync_do { @xkvs.xput <+ [["A", "foo", 1, "bar"]] }
+		@xkvs.sync_do { @xkvs.end_xact <+ [["A"]] }
+		@xkvs.sync_do { @xkvs.xget <+ [["B", "foo", 2]] }
+		@xkvs.sync_do { @xkvs.xput <+ [["B", "foo", 3, "baz"]] }
+    @xkvs.sync_do { @xkvs.end_xact <+ [["B"]] }
+    @xkvs.sync_do { @xkvs.xget <+ [["C", "foo", 4]] }
+    @xkvs.tick
+    p @xkvs.xget_response
+	end
+
 	# Testing a conflict serializable schedule
 	def test_conflict_serializability
 		# Populate kvs.kvstate with two key-values
