@@ -10,21 +10,21 @@ end
 
 
 class TestRestBud < Test::Unit::TestCase
-  def get(resource, params=nil)
-    response = RestClient.get "http://localhost:#{@port}/#{resource}", params: params, content_type: :json, accept: :json
+  def get(resource, params={})
+    response = RestClient.get "http://localhost:#{@port}/#{resource}", data: params.to_json, content_type: :json, accept: :json
     assert_equal 200, response.code
     data = JSON.parse response.strip
     return data
   end
 
-  def post(resource, params=nil)
+  def post(resource, params={})
     response = RestClient.post "http://localhost:#{@port}/#{resource}", params: params.to_json, content_type: :json, accept: :json
     assert_equal 200, response.code
     data = JSON.parse response.strip
     return data
   end
 
-  def delete (resource, params=nil)
+  def delete (resource, params={})
     response = RestClient.delete "http://localhost:#{@port}/#{resource}", data: params.to_json, content_type: :json, accept: :json
     assert_equal 200, response.code
     data = JSON.parse response.strip
@@ -64,6 +64,13 @@ class TestRestBud < Test::Unit::TestCase
     assert_equal 2, bud_inst.tables[tabname].length
     assert bud_inst.tables[tabname].include?(rows[0]), "Expected rows #{rows[0]} to appear in table '#{tabname}' storage"
     assert bud_inst.tables[tabname].include?(rows[1]), "Expected rows #{rows[1]} to appear in table '#{tabname}' storage"
+
+    # GET /content
+    data = get :content, { collection_name: tabname }
+    assert data.include?("content"), "Expect the result to contain the 'content'\n '#{data.inspect}'"
+    rows[0..1].each do |row|
+      assert data["content"].include?(row), "Expect the result to include row '#{row.inspect}'"
+    end
 
     # TODO test for <+ and <~
     # data = post :add_rows, { collection_name: tabname, op: '<~', rows: rows[2..2] }

@@ -26,6 +26,8 @@ class BudRESTServer
         case action
         when "collections"
           response.body = { tables: non_builtin_collections(Bud::BudTable) }.to_json
+        when "content"
+          handle_request_get_content(request, response)
         when "rules"
           raise "Unemplemented feature"
         else
@@ -78,6 +80,22 @@ class BudRESTServer
           $bud_instance.tables[name].class == klass
         end
       end
+    end
+
+    private
+    def handle_request_get_content(request, response)
+      params = JSON.parse(request.header["data"][0])
+      ['collection_name'].each do |param|
+        raise "Missing required argument: '#{param}'" unless params.include? param
+      end
+      collection = $bud_instance.tables[params['collection_name'].to_sym]
+      raise "Collection '#{params['collection_name']} does not exist!" if collection.nil?
+
+      content = []
+      collection.each do |row|
+        content << row.to_a
+      end
+      response.body = { content: content }.to_json
     end
 
     private
@@ -138,7 +156,6 @@ class BudRESTServer
 
       rows = params['rows']
       collection <- rows
-      puts collection.new_delta
       response.body = { success: "Removed rows to collection '#{collection.tabname}'" }.to_json
     end
 
