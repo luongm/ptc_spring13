@@ -32,7 +32,7 @@ Return all the content in the collection with the given `name`
 
     GET /content
 ##### Parameters
-* `name` name of collection
+* `collection_name` name of collection
 
 ##### Success response
     Status: 200 OK
