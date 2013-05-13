@@ -80,7 +80,6 @@ class TestRestBud < Test::Unit::TestCase
     assert !bud_inst.tables[tabname].include?(rows[1]), "Expected rows #{rows[1]} to appear in table '#{tabname}' storage"
   end
 
-=begin
   def test_add_rule
     # test data
     bud_inst = RestBud.new
@@ -102,6 +101,5 @@ class TestRestBud < Test::Unit::TestCase
     assert data.include?("success"), "Did not receive success message when adding a rule\n '#{data.each {|d| d.inspect}}'"
     assert_equal "Added rule to bud", data["success"]
   end
-=end
 end
 

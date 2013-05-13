@@ -1,9 +1,12 @@
+gem 'ruby_parser', '>= 3.0.2'
+require 'ruby_parser'
 require 'webrick'
 require 'json'
 
 class BudRESTServer
   def initialize(bud_instance, options={})
     $bud_instance = bud_instance
+    $rule_num = 0
 
     if options[:rest_port]
       @server_thread = Thread.new do
@@ -63,7 +66,7 @@ class BudRESTServer
           raise "Unrecognized action '#{action}' in path '#{request.path}'"
         end
       rescue Exception => e
-        response.body = error_response(e.message, e.backtrace)
+        response.body = error_response(e.message)
       end
     end
 
@@ -147,6 +150,10 @@ class BudRESTServer
       end
       lhs = $bud_instance.tables[params['lhs'].to_sym]
       raise "Collection '#{params['lhs']} does not exist!" if lhs.nil?
+
+      parser = RubyParser.for_current_ruby
+      rule = "#{params['lhs']} #{params['op']} #{params['rhs']}"
+      ast = parser.parse rule
 
       raise "Unemplemented feature"
     end
