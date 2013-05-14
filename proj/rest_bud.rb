@@ -4,7 +4,8 @@ require 'webrick'
 require 'json'
 
 class BudRESTServer
-  def initialize(bud_instance, options={})
+  def initialize(klass, bud_instance, options={})
+    $bud_class = RestBud
     $bud_instance = bud_instance
     $rule_num = 0
 
@@ -189,7 +190,7 @@ class BudRESTServer
       end
 
       rule = "#{params['lhs']} #{params['op']} #{params['rhs']}"
-      RestBud.add_rule(rule)
+      $bud_class.add_rule(rule)
       $bud_instance.reload
       response.body = { success: "Added rule to bud" }.to_json
     end

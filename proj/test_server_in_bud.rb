@@ -5,12 +5,6 @@ require 'test/unit'
 require 'rest-client'
 require 'rest_bud_helper'
 
-class RestBud
-  include Bud
-  include BudRestHelper
-end
-
-
 class TestRestBud < Test::Unit::TestCase
   @@port = 3000
 
@@ -96,9 +90,15 @@ class TestRestBud < Test::Unit::TestCase
   end
 
   def setup
+    c = Class.new do
+      include Bud
+      include BudRestHelper
+    end
+    Kernel.const_set 'RestBud', c
+
     @@port = @@port+1
     @bud_inst = RestBud.new
-    @rest_bud = BudRESTServer.new @bud_inst, rest_port: @@port
+    @rest_bud = BudRESTServer.new RestBud, @bud_inst, rest_port: @@port
     @bud_inst.start
     sleep 1
   end
@@ -147,27 +147,21 @@ class TestRestBud < Test::Unit::TestCase
     val_cols = [:test_val]
 
     # Add different kinds of collections: table, scratch, input/output interface, channel
-    data = post :add_collection, {type: 'table', collection_name: :table1, keys: key_cols, values: val_cols}
-    assert data.include?("success"), "Did not receive success message when adding table\n '#{data.inspect}'"
-    assert @bud_inst.tables.include?(:table1), "Bud instance should include the added table's name"
-
-    data = post :add_collection, {type: 'scratch', collection_name: :scratch1, keys: key_cols, values: val_cols}
-    assert data.include?("success"), "Did not receive success message when adding scratch\n '#{data.inspect}'"
-    assert @bud_inst.tables.include?(:scratch1), "Bud instance should include the added scratch's name"
-
-    data = post :add_collection, {type: 'input_interface', collection_name: :input1, keys: key_cols, values: val_cols}
-    assert data.include?("success"), "Did not receive success message when adding input interface\n '#{data.inspect}'"
-    assert @bud_inst.tables.include?(:input1), "Bud instance should include the added input interface's name"
-
-    data = post :add_collection, {type: 'output_interface', collection_name: :output1, keys: key_cols, values: val_cols}
-    assert data.include?("success"), "Did not receive success message when adding output interface\n '#{data.inspect}'"
-    assert @bud_inst.tables.include?(:output1), "Bud instance should include the added output interface's name"
-
-    data = post :add_collection, {type: 'channel', collection_name: :channel1, keys: key_cols+[:@loc], values: val_cols}
-    assert data.include?("success"), "Did not receive success message when adding channel\n '#{data.inspect}'"
-    assert @bud_inst.tables.include?(:channel1), "Bud instance should include the added output interface's name"
+    add_collection :table1, :table, key_cols, val_cols
+    add_collection :scratch1, :scratch, key_cols, val_cols
+    add_collection :input1, :input_interface, key_cols, val_cols
+    add_collection :output1, :output_interface, key_cols, val_cols
+    add_collection :channel1, :channel, key_cols+[:@loc], val_cols
 
     # Get the list of collections
+    assert_equal get_collections, {
+        'tables' => ['table1'],
+        'scratches' => ['scratch1'],
+        'input_interfaces' => ['input1'],
+        'output_interfaces' => ['output1'],
+        'channels' => ['channel1']
+    }
+
     data = get :collections
     assert data.include?("collections"), "Expect response to include 'collections' when 'GET /collections'\n'#{data.inspect}'"
     assert_equal 5, data["collections"].count, "Should only have one type of collection"
