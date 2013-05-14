@@ -26,11 +26,12 @@ class BudRESTServer
   class BudServlet < WEBrick::HTTPServlet::AbstractServlet
     def do_GET(request, response)
       response.status = 200
+      parse_header_params request
       begin
         action = request.path[1..-1].split("/")[0]
         case action
         when "collections"
-          handle_request_get_collections(request, response)
+          response.body = get_collections(request).to_json
         when "content"
           handle_request_get_content(request, response)
         when "rules"
@@ -45,6 +46,7 @@ class BudRESTServer
 
     def do_POST(request, response)
       response.status = 200
+      parse_query_params request
       begin
         action = request.path[1..-1].split("/")[0]
         case action
@@ -64,6 +66,7 @@ class BudRESTServer
 
     def do_DELETE(request, response)
       response.status = 200
+      parse_header_params request
       begin
         action = request.path[1..-1].split("/")[0]
         case action
@@ -78,26 +81,28 @@ class BudRESTServer
     end
 
     private
-    def handle_request_get_collections(request, response)
+    def get_collections(request)
       names = $bud_instance.tables.keys - $bud_instance.builtin_tables.keys
-      collections = {
-        tables: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudTable },
-        scratches: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudScratch },
-        input_interfaces: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudInputInterface },
-        output_interfaces: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudOutputInterface },
-        channels: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudChannel }
-      }
-      collections.delete_if { |k,v| v.empty? }
-      response.body = { collections: collections }.to_json
+      collections = {}
+      {
+        :tables => Bud::BudTable,
+        :scratches => Bud::BudScratch,
+        :input_interfaces => Bud::BudInputInterface,
+        :output_interfaces => Bud::BudOutputInterface,
+        :channels => Bud::BudChannel
+      }.each do |sym, klass|
+        results = names.select { |name| name if $bud_instance.tables[name].class == klass }
+        collections[sym] = results unless results.empty?
+      end
+      return { collections: collections }
     end
 
     def handle_request_get_content(request, response)
-      params = JSON.parse(request.header["params"][0])
       ['collection_name'].each do |param|
-        raise "Missing required argument: '#{param}'" unless params.include? param
+        raise "Missing required argument: '#{param}'" unless @params.include? param
       end
-      collection = $bud_instance.tables[params['collection_name'].to_sym]
-      raise "Collection '#{params['collection_name']} does not exist!" if collection.nil?
+      collection = $bud_instance.tables[@params['collection_name'].to_sym]
+      raise "Collection '#{@params['collection_name']} does not exist!" if collection.nil?
 
       content = []
       collection.each do |row|
@@ -112,17 +117,16 @@ class BudRESTServer
     end
 
     def handle_request_add_collection(request, response)
-      params = JSON.parse(request.query["params"])
       ['type', 'collection_name', 'keys', 'values'].each do |param|
-        raise "Missing required argument: '#{param}'" unless params.include? param
+        raise "Missing required argument: '#{param}'" unless @params.include? param
       end
 
       # parse keys and values columns
-      key_cols = params['keys'].map(&:to_sym)
-      val_cols = params['values'].map(&:to_sym)
-      collection_name = params['collection_name']
+      key_cols = @params['keys'].map(&:to_sym)
+      val_cols = @params['values'].map(&:to_sym)
+      collection_name = @params['collection_name']
 
-      case params['type']
+      case @params['type']
       when "table"
         $bud_instance.table collection_name.to_sym, key_cols => val_cols
         response.body = { success: "Added table '#{collection_name}'" }.to_json
@@ -144,15 +148,14 @@ class BudRESTServer
     end
 
     def handle_request_add_rows(request, response)
-      params = JSON.parse(request.query["params"])
       ['collection_name', 'op', 'rows'].each do |param|
-        raise "Missing required argument: '#{param}'" unless params.include? param
+        raise "Missing required argument: '#{param}'" unless @params.include? param
       end
-      collection = $bud_instance.tables[params['collection_name'].to_sym]
-      raise "Collection '#{params['collection_name']} does not exist!" if collection.nil?
+      collection = $bud_instance.tables[@params['collection_name'].to_sym]
+      raise "Collection '#{@params['collection_name']} does not exist!" if collection.nil?
 
-      rows = params['rows']
-      case params['op']
+      rows = @params['rows']
+      case @params['op']
       when '<='
         collection <= rows
         collection.flush_deltas
@@ -163,32 +166,30 @@ class BudRESTServer
         # TODO
         raise "Unemplemented feature"
       else
-        raise "Unexpected operation: '#{params['op']}'"
+        raise "Unexpected operation: '#{@params['op']}'"
       end
       response.body = { success: "Added rows to collection '#{collection.tabname}'" }.to_json
     end
 
     def handle_request_remove_rows(request, response)
-      params = JSON.parse(request.header["params"][0])
       ['collection_name', 'rows'].each do |param|
-        raise "Missing required argument: '#{param}'" unless params.include? param
+        raise "Missing required argument: '#{param}'" unless @params.include? param
       end
-      collection = $bud_instance.tables[params['collection_name'].to_sym]
-      raise "Collection '#{params['collection_name']} does not exist!" if collection.nil?
+      collection = $bud_instance.tables[@params['collection_name'].to_sym]
+      raise "Collection '#{@params['collection_name']} does not exist!" if collection.nil?
 
-      rows = params['rows']
+      rows = @params['rows']
       collection <- rows
       collection.tick
       response.body = { success: "Removed rows from collection '#{collection.tabname}'" }.to_json
     end
 
     def handle_request_add_rule(request, response)
-      params = JSON.parse(request.query["params"])
       ['lhs', 'op', 'rhs'].each do |param|
-        raise "Missing required argument: '#{param}'" unless params.include? param
+        raise "Missing required argument: '#{param}'" unless @params.include? param
       end
 
-      rule = "#{params['lhs']} #{params['op']} #{params['rhs']}"
+      rule = "#{@params['lhs']} #{@params['op']} #{@params['rhs']}"
       $bud_class.add_rule(rule)
       $bud_instance.reload
       response.body = { success: "Added rule to bud" }.to_json
@@ -199,6 +200,13 @@ class BudRESTServer
       error[:stack_trace] = backtrace if backtrace
       return error.to_json
     end
+
+    def parse_header_params(request)
+      @params = JSON.parse(request.header["params"][0])
+    end
+
+    def parse_query_params(request)
+      @params = JSON.parse(request.query["params"])
+    end
   end
 end
-
