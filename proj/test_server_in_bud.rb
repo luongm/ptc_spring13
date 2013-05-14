@@ -10,22 +10,23 @@ end
 
 
 class TestRestBud < Test::Unit::TestCase
+  @@port = 3000
   def get(resource, params={})
-    response = RestClient.get "http://localhost:#{$port}/#{resource}", data: params.to_json, content_type: :json, accept: :json
+    response = RestClient.get "http://localhost:#{@@port}/#{resource}", data: params.to_json, content_type: :json, accept: :json
     assert_equal 200, response.code
     data = JSON.parse response.strip
     return data
   end
 
   def post(resource, params={})
-    response = RestClient.post "http://localhost:#{$port}/#{resource}", params: params.to_json, content_type: :json, accept: :json
+    response = RestClient.post "http://localhost:#{@@port}/#{resource}", params: params.to_json, content_type: :json, accept: :json
     assert_equal 200, response.code
     data = JSON.parse response.strip
     return data
   end
 
   def delete (resource, params={})
-    response = RestClient.delete "http://localhost:#{$port}/#{resource}", data: params.to_json, content_type: :json, accept: :json
+    response = RestClient.delete "http://localhost:#{@@port}/#{resource}", data: params.to_json, content_type: :json, accept: :json
     assert_equal 200, response.code
     data = JSON.parse response.strip
     return data
@@ -33,14 +34,60 @@ class TestRestBud < Test::Unit::TestCase
 
   def setup
     @bud_inst = RestBud.new
-    $port = $port.nil? ? 3000 : $port+1
-    @rest_bud = BudRESTServer.new @bud_inst, rest_port: $port
+    @@port = @@port+1
+    @rest_bud = BudRESTServer.new @bud_inst, rest_port: @@port
     @bud_inst.start
+    sleep 1
   end
 
   def teardown
     @bud_inst.stop
     @rest_bud.stop
+  end
+
+  def tables
+    @bud_inst.tables
+  end
+
+  def assert_contents(table, contents)
+    assert_equal contents.size, table.length
+    contents.each do |e|
+      assert table.include?(e), "Expected row #{e} to appear in table #{table}"
+    end
+  end
+
+  def add_collection(name, type, keys, values)
+    data = post :add_collection, collection_name: name, type: type, keys: keys, values: values
+
+    assert data.include?('success'), "Did not receive success message when adding table\n '#{data.inspect}'"
+    assert tables.include?(name), "Bud instance should include the added table's name"
+    return data
+  end
+
+  def get_collections
+    data = get :collections
+    assert data.include?('collections'), "Expect response to include 'collections' when 'GET /collections'\n'#{data.inspect}'"
+    return data['collections']
+  end
+
+  def get_content(tabname)
+    data = get :content, { collection_name: tabname }
+    assert data.include?('content'), "Expect the result to contain the 'content'\n'#{data.inspect}'"
+    return data['content']
+  end
+
+  def insert_row(collection, op, rows)
+    data = post :add_rows, collection_name: collection, op: op, rows: rows
+
+    assert data.include?('success'), "Did not receive success message when add a row into '#{collection}'\n #{data.inspect}"
+    assert_equal "Added rows to collection '#{collection}'", data['success']
+  end
+
+  def remove_rows(collection_name, rows)
+    data = delete :remove_rows, collection_name: collection_name, rows: rows
+
+    assert data.include?('success'), "Did not receive success message when remove a row from '#{collection_name}'\n '#{data.each {|d| d.inspect}}'"
+    assert_equal "Removed rows to collection '#{collection_name}'", data['success']
   end
 
   def test_basic
@@ -51,50 +98,29 @@ class TestRestBud < Test::Unit::TestCase
     rows = 4.times.map { |i| ["k#{i}a", "k#{i}b", "v#{i}a", "v#{i}b"] } # ['k1a', 'k1b', 'v1a', 'v1b']
 
     # POST /add_collection
-    data = post :add_collection, {type: 'table', collection_name: tabname, keys: key_cols, values: val_cols}
-    assert data.include?("success"), "Did not receive success message when adding table\n '#{data.inspect}'"
-    assert @bud_inst.tables.include?(tabname), "Bud instance should include the added table's name"
-    resp_key_cols = @bud_inst.tables[tabname].key_cols
-    resp_val_cols = @bud_inst.tables[tabname].cols - key_cols
-    assert_equal key_cols, resp_key_cols
-    assert_equal val_cols, resp_val_cols
+    add_collection tabname, :table, key_cols, val_cols
+
+    assert_equal key_cols, tables[tabname].key_cols
+    assert_equal val_cols, tables[tabname].val_cols
 
     # GET /collections
-    data = get :collections
-    assert data.include?("collections"), "Expect response to include 'collections' when 'GET /collections'\n'#{data.inspect}'"
-    assert_equal 1, data["collections"].count, "Should only have one type of collection"
-    assert data["collections"].include?("tables"), "Type 'tables' not in list\n'#{data.inspect}'"
-    assert_equal 1, data["collections"]["tables"].count, "Should only have one table"
-    assert_equal tabname.to_s, data["collections"]["tables"][0], "Tables list should include '#{tabname}'"
+    assert_equal get_collections, {'tables' => [tabname.to_s]}
 
     # POST /insert
-    data = post :add_rows, { collection_name: tabname, op: '<=', rows: rows[0..1] }
-    assert data.include?("success"), "Did not receive success message when add a row into '#{tabname}'\n'#{data.inspect}'"
-    assert_equal "Added rows to collection '#{tabname}'", data["success"]
-    assert_equal 2, @bud_inst.tables[tabname].length
-    assert @bud_inst.tables[tabname].include?(rows[0]), "Expected rows #{rows[0]} to appear in table '#{tabname}' storage"
-    assert @bud_inst.tables[tabname].include?(rows[1]), "Expected rows #{rows[1]} to appear in table '#{tabname}' storage"
+    insert_row tabname, '<=', rows[0..1]
+    assert_contents tables[tabname], rows[0..1]
 
     # GET /content
-    data = get :content, { collection_name: tabname }
-    assert data.include?("content"), "Expect the result to contain the 'content'\n'#{data.inspect}'"
-    rows[0..1].each do |row|
-      assert data["content"].include?(row), "Expect the result to include row '#{row.inspect}'"
-    end
+    assert_contents get_content(tabname), rows[0..1]
 
     # TODO test for <+ and <~
     # data = post :add_rows, { collection_name: tabname, op: '<~', rows: rows[2..2] }
     # assert_equal 3, @bud_inst.tables[tabname].length
     # assert @bud_inst.tables[tabname].include?(rows[2]), "Expected rows #{rows[2]} to appear in table '#{tabname}' storage"
 
-    # TODO DELETE /remove
-    # data = delete :remove_rows, { collection_name: tabname, rows: [rows[1]] }
-    # assert data.include?("success"), "Did not receive success message when remove a row from '#{tabname}'\n '#{data.each {|d| d.inspect}}'"
-    # assert_equal "Removed rows to collection '#{tabname}'", data["success"]
-    # assert_equal 2, @bud_inst.tables[tabname].count, "Should only have 2 row now"
-    # assert @bud_inst.tables[tabname].include?(rows[0]), "Expected rows #{rows[0]} to appear in table '#{tabname}' storage"
-    # assert !@bud_inst.tables[tabname].include?(rows[1]), "Expected rows #{rows[1]} to appear in table '#{tabname}' storage"
-    # assert @bud_inst.tables[tabname].include?(rows[2]), "Expected rows #{rows[2]} to appear in table '#{tabname}' storage"
+    # DELETE /remove
+    remove_rows(tabname, [rows[1]])
+    assert_contents tables[tabname], [rows[0]]
   end
 
   def test_add_collections

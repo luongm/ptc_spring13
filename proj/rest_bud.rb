@@ -153,6 +153,7 @@ class BudRESTServer
       case params['op']
       when '<='
         collection <= rows
+        collection.flush_deltas
       when '<+'
         # TODO
         raise "Unemplemented feature"
@@ -176,6 +177,7 @@ class BudRESTServer
 
       rows = params['rows']
       collection <- rows
+      collection.tick
       response.body = { success: "Removed rows to collection '#{collection.tabname}'" }.to_json
     end
 
