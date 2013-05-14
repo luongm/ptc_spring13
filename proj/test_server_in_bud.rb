@@ -11,25 +11,30 @@ end
 
 class TestRestBud < Test::Unit::TestCase
   @@port = 3000
-  def get(resource, params={})
-    response = RestClient.get "http://localhost:#{@@port}/#{resource}", params: params.to_json, content_type: :json, accept: :json
+
+  def url(resource)
+    "http://localhost:#{@@port}/#{resource}"
+  end
+
+  def options(params)
+    { params: params.to_json, content_type: :json, accept: :json }
+  end
+
+  def parse_response(response)
     assert_equal 200, response.code
-    data = JSON.parse response.strip
-    return data
+    return JSON.parse response.strip
+  end
+
+  def get(resource, params={})
+    return parse_response(RestClient.get url(resource), options(params))
   end
 
   def post(resource, params={})
-    response = RestClient.post "http://localhost:#{@@port}/#{resource}", params: params.to_json, content_type: :json, accept: :json
-    assert_equal 200, response.code
-    data = JSON.parse response.strip
-    return data
+    return parse_response(RestClient.post url(resource), options(params))
   end
 
   def delete (resource, params={})
-    response = RestClient.delete "http://localhost:#{@@port}/#{resource}", params: params.to_json, content_type: :json, accept: :json
-    assert_equal 200, response.code
-    data = JSON.parse response.strip
-    return data
+    return parse_response(RestClient.delete url(resource), options(params))
   end
 
   def setup
