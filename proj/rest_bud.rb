@@ -24,45 +24,40 @@ class BudRESTServer
   end
 
   class BudServlet < WEBrick::HTTPServlet::AbstractServlet
-    def do_GET(request, response)
+    @@get_routes = {
+      'collections' => :get_collections,
+      'content' => :get_content,
+      'rules' => :get_rules
+    }
+    @@post_routes = {
+      'add_collection' => :add_collection,
+      'add_rows' => :add_rows,
+      'add_rule' => :add_rule
+    }
+
+    def handle_request(routes, request, response)
       response.status = 200
-      parse_header_params request
       begin
         action = request.path[1..-1].split("/")[0]
-        case action
-        when "collections"
-          get_collections(request)
-        when "content"
-          get_content(request)
-        when "rules"
-          get_rules(request)
+        if routes.include? action
+          self.send(routes[action], request)
+          response.body = @response.to_json
         else
           raise "Unrecognized action '#{action}' in path '#{request.path}'"
         end
-        response.body = @response.to_json
       rescue Exception => e
         response.body = error_response(e.message)
       end
     end
 
+    def do_GET(request, response)
+      parse_header_params request
+      handle_request(@@get_routes, request, response)
+    end
+
     def do_POST(request, response)
-      response.status = 200
       parse_query_params request
-      begin
-        action = request.path[1..-1].split("/")[0]
-        case action
-        when "add_collection"
-          handle_request_add_collection(request, response)
-        when "add_rows"
-          handle_request_add_rows(request, response)
-        when "add_rule"
-          handle_request_add_rule(request, response)
-        else
-          raise "Unrecognized action '#{action}' in path '#{request.path}'"
-        end
-      rescue Exception => e
-        response.body = error_response(e.message)
-      end
+      handle_request(@@post_routes, request, response)
     end
 
     def do_DELETE(request, response)
@@ -82,6 +77,7 @@ class BudRESTServer
     end
 
     private
+    # GET methods
     def get_collections(request)
       names = $bud_instance.tables.keys - $bud_instance.builtin_tables.keys
       collections = {}
@@ -101,52 +97,49 @@ class BudRESTServer
     def get_content(request)
       require_param_keys ['collection_name']
       collection_name = @params['collection_name']
-      collection = $bud_instance.tables[collection_name.to_sym]
-      raise "Collection '#{collection_name} does not exist!" if collection.nil?
-      @response = { content: collection.to_a.map(&:to_a) }
+      @response = { content: get_collection(collection_name).to_a.map(&:to_a) }
     end
 
     def get_rules(request)
       @response = { rules: $bud_instance.t_rules.to_a.map {|x| x[5]} }
     end
 
-    def handle_request_add_collection(request, response)
-      ['type', 'collection_name', 'keys', 'values'].each do |param|
-        raise "Missing required argument: '#{param}'" unless @params.include? param
-      end
+    # POST methods
+    def add_collection(request)
+      require_param_keys ['type', 'collection_name', 'keys', 'values']
 
       # parse keys and values columns
+      collection_type = @params['type']
+      collection_name = @params['collection_name']
       key_cols = @params['keys'].map(&:to_sym)
       val_cols = @params['values'].map(&:to_sym)
-      collection_name = @params['collection_name']
 
-      case @params['type']
-      when "table"
-        $bud_instance.table collection_name.to_sym, key_cols => val_cols
-        response.body = { success: "Added table '#{collection_name}'" }.to_json
-      when "scratch"
-        $bud_instance.scratch collection_name.to_sym, key_cols => val_cols
-        response.body = { success: "Added scratch '#{collection_name}'" }.to_json
-      when "input_interface"
-        $bud_instance.interface true, collection_name.to_sym, key_cols => val_cols
-        response.body = { success: "Added input interface '#{collection_name}'" }.to_json
-      when "output_interface"
-        $bud_instance.interface false, collection_name.to_sym, key_cols => val_cols
-        response.body = { success: "Added output interface '#{collection_name}'" }.to_json
-      when "channel"
-        $bud_instance.channel collection_name.to_sym, key_cols => val_cols
-        response.body = { success: "Added channel '#{collection_name}'" }.to_json
+      args = [collection_name.to_sym, {key_cols => val_cols}]
+      collection_map = {
+        'table' => :table,
+        'scratch' => :scratch,
+        'input_interface' => :interface,
+        'output_interface' => :interface,
+        'channel' => :channel
+      }
+      args_map = {
+        'table' => args,
+        'scratch' => args,
+        'input_interface' => [true] + args,
+        'output_interface' => [false] + args,
+        'channel' => args
+      }
+      if collection_map.include? collection_type
+        $bud_instance.send(collection_map[collection_type], *args_map[collection_type])
       else
-        raise "Unrecognized type of collection to add"
+        raise 'Unrecognized type of collection to add'
       end
+      @response = { success: "Added #{collection_type.gsub /_/, ' '} '#{collection_name}'" }
     end
 
-    def handle_request_add_rows(request, response)
-      ['collection_name', 'op', 'rows'].each do |param|
-        raise "Missing required argument: '#{param}'" unless @params.include? param
-      end
-      collection = $bud_instance.tables[@params['collection_name'].to_sym]
-      raise "Collection '#{@params['collection_name']} does not exist!" if collection.nil?
+    def add_rows(request)
+      require_param_keys ['collection_name', 'op', 'rows']
+      collection = get_collection(@params['collection_name'])
 
       rows = @params['rows']
       case @params['op']
@@ -162,7 +155,15 @@ class BudRESTServer
       else
         raise "Unexpected operation: '#{@params['op']}'"
       end
-      response.body = { success: "Added rows to collection '#{collection.tabname}'" }.to_json
+      @response = { success: "Added rows to collection '#{collection.tabname}'" }
+    end
+
+    def add_rule(request)
+      require_param_keys ['lhs', 'op', 'rhs']
+
+      $bud_class.add_rule "#{@params['lhs']} #{@params['op']} #{@params['rhs']}"
+      $bud_instance.reload
+      @response = { success: "Added rule to bud" }
     end
 
     def handle_request_remove_rows(request, response)
@@ -176,17 +177,6 @@ class BudRESTServer
       collection <- rows
       collection.tick
       response.body = { success: "Removed rows from collection '#{collection.tabname}'" }.to_json
-    end
-
-    def handle_request_add_rule(request, response)
-      ['lhs', 'op', 'rhs'].each do |param|
-        raise "Missing required argument: '#{param}'" unless @params.include? param
-      end
-
-      rule = "#{@params['lhs']} #{@params['op']} #{@params['rhs']}"
-      $bud_class.add_rule(rule)
-      $bud_instance.reload
-      response.body = { success: "Added rule to bud" }.to_json
     end
 
     def error_response(message, backtrace=nil)
@@ -207,6 +197,12 @@ class BudRESTServer
       keys.each do |param|
         raise "Missing required argument: '#{param}'" unless @params.include? param
       end
+    end
+
+    def get_collection(collection_name)
+      collection = $bud_instance.tables[collection_name.to_sym]
+      raise "Collection '#{collection_name} does not exist!" if collection.nil?
+      return collection
     end
   end
 end
