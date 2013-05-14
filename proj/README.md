@@ -1,34 +1,41 @@
 ## REST server inside Bud - API Documentation
 ##### Note
 * Only accepts and returns JSON data
-* Only support collection type `table` for now
+##### Issues
 * Cannot remove a row yet
 * Cannot add rule or view list of rules yet
 
 ##### All failed response will have this format
     Status: 200 OK
     {
-        'error' : 'error'
+        'error' : 'error message here'
     }
 
 ### 1) List collections
-Return a list of all user-defined (non-builtin) collections by the `/add_collection` API
+Return a list of all user-defined (non-builtin) collections by the `/add_collection` API  
+If the user has not defined any collection for a type, it will not be shown in the response
 
     GET /collections
 ##### Success response
     Status: 200 OK
     {
-        'tables': [
-            'table1',
-            'table2',
-            'scratch1',
-            'channel1'
-        ]
+        'collections': {
+            'tables': [
+                'table1',
+                'table2',
+            ],
+            'scratches': [
+                'scratch1'
+            ],
+            'channels': [
+                'channel1'
+            ]
+        }
     }
 
 
 ### 2) List collection content
-Return all the content in the collection with the given `name`
+Return all the content in the collection with the given `collection_name`
 
     GET /content
 ##### Parameters
@@ -38,10 +45,10 @@ Return all the content in the collection with the given `name`
     Status: 200 OK
     {
         'content': [
-            '[k1, v1]',
-            '[k2, v2]',
-            '[k3, v3]',
-            '[k4, v4]',
+            ['k1', 'v1'],
+            ['k2', 'v2'],
+            ['k3', 'v3'],
+            ['k4', 'v4']
         ]
     }
 
@@ -52,21 +59,21 @@ Add a collection to the bud instance
     POST /add_collection
 ##### Parameters
 * `type` type of collection _(only support `table` for now)_
-* `name` name of collection
+* `collection_name` name of collection
 * `keys` a list of keys, ie. `[:test_key_1, :test_key_2]`
 * `values` a list of values, ie. `[:test_val_1, :test_val_2, :test_val_3]`
 
 ##### Success response
     Status: 200 OK
     {
-        'success' : 'Added table'
+        'success' : "Added 'collection_type' 'collection_name'"
     }
 
 
 ### 4) Insert row
 Insert row(s) into a collection
 
-    POST /insert
+    POST /add_rows
 ##### Parameters
 * `collection_name` the name of the collection to be added
 * `op` the operation, _(only support `<=` for now)_
@@ -80,9 +87,10 @@ Insert row(s) into a collection
 
 
 ### 5) Remove row
+_**TODO:**  to be implemented_  
 Remove row(s) into a collection (with `<-`)
 
-    POST /remove
+    POST /remove_rows
 ##### Parameters
 * `collection_name` the name of the collection to be removed
 * `rows` the list of rows to be removed, ie. `[ [:k1, :k2, :v1, :v2], [:k3, :k4, :v3, :v4] ]`
@@ -95,6 +103,7 @@ Remove row(s) into a collection (with `<-`)
 
 
 ### 6) List rules
+_**TODO:**  to be implemented_  
 Get a list of rules currently associated with the bud instance
 
     GET /rules
