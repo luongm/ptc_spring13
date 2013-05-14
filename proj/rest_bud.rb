@@ -34,8 +34,7 @@ class BudRESTServer
         when "content"
           handle_request_get_content(request, response)
         when "rules"
-          # TODO
-          raise "Unemplemented feature"
+          handle_request_get_rules(request, response)
         else
           raise "Unrecognized action '#{action}' in path '#{request.path}'"
         end
@@ -92,7 +91,6 @@ class BudRESTServer
       response.body = { collections: collections }.to_json
     end
 
-    private
     def handle_request_get_content(request, response)
       params = JSON.parse(request.header["params"][0])
       ['collection_name'].each do |param|
@@ -108,7 +106,11 @@ class BudRESTServer
       response.body = { content: content }.to_json
     end
 
-    private
+    def handle_request_get_rules(request, response)
+      rules = $bud_instance.t_rules.to_a.map {|x| x[5]}
+      response.body = { rules: rules }.to_json
+    end
+
     def handle_request_add_collection(request, response)
       params = JSON.parse(request.query["params"])
       ['type', 'collection_name', 'keys', 'values'].each do |param|
@@ -141,7 +143,6 @@ class BudRESTServer
       end
     end
 
-    private
     def handle_request_add_rows(request, response)
       params = JSON.parse(request.query["params"])
       ['collection_name', 'op', 'rows'].each do |param|
@@ -167,7 +168,6 @@ class BudRESTServer
       response.body = { success: "Added rows to collection '#{collection.tabname}'" }.to_json
     end
 
-    private
     def handle_request_remove_rows(request, response)
       params = JSON.parse(request.header["params"][0])
       ['collection_name', 'rows'].each do |param|
@@ -182,7 +182,6 @@ class BudRESTServer
       response.body = { success: "Removed rows from collection '#{collection.tabname}'" }.to_json
     end
 
-    private
     def handle_request_add_rule(request, response)
       params = JSON.parse(request.query["params"])
       ['lhs', 'op', 'rhs'].each do |param|
@@ -195,7 +194,6 @@ class BudRESTServer
       response.body = { success: "Added rule to bud" }.to_json
     end
 
-    private
     def error_response(message, backtrace=nil)
       error = { errors: message }
       error[:stack_trace] = backtrace if backtrace

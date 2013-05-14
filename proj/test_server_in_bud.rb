@@ -60,7 +60,6 @@ class TestRestBud < Test::Unit::TestCase
   end
 
   def get_rules
-    p $bud_instance.t_rules.to_a
     $bud_instance.t_rules.to_a.map {|x| x[5]}
   end
 
@@ -98,6 +97,12 @@ class TestRestBud < Test::Unit::TestCase
     data = delete :remove_rows, collection_name: collection_name, rows: rows
     assert_response_contains(data, 'success')
     assert_equal "Removed rows from collection '#{collection_name}'", data['success']
+  end
+
+  def rest_get_rules
+    data = get :rules
+    assert_response_contains(data, 'rules')
+    return data['rules']
   end
 
   def rest_add_rule(lhs, op, rhs)
