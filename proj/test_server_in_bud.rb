@@ -12,7 +12,7 @@ end
 class TestRestBud < Test::Unit::TestCase
   @@port = 3000
   def get(resource, params={})
-    response = RestClient.get "http://localhost:#{@@port}/#{resource}", data: params.to_json, content_type: :json, accept: :json
+    response = RestClient.get "http://localhost:#{@@port}/#{resource}", params: params.to_json, content_type: :json, accept: :json
     assert_equal 200, response.code
     data = JSON.parse response.strip
     return data
@@ -26,7 +26,7 @@ class TestRestBud < Test::Unit::TestCase
   end
 
   def delete (resource, params={})
-    response = RestClient.delete "http://localhost:#{@@port}/#{resource}", data: params.to_json, content_type: :json, accept: :json
+    response = RestClient.delete "http://localhost:#{@@port}/#{resource}", params: params.to_json, content_type: :json, accept: :json
     assert_equal 200, response.code
     data = JSON.parse response.strip
     return data

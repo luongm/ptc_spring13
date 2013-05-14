@@ -93,7 +93,7 @@ class BudRESTServer
 
     private
     def handle_request_get_content(request, response)
-      params = JSON.parse(request.header["data"][0])
+      params = JSON.parse(request.header["params"][0])
       ['collection_name'].each do |param|
         raise "Missing required argument: '#{param}'" unless params.include? param
       end
@@ -168,7 +168,7 @@ class BudRESTServer
 
     private
     def handle_request_remove_rows(request, response)
-      params = JSON.parse(request.header["data"][0])
+      params = JSON.parse(request.header["params"][0])
       ['collection_name', 'rows'].each do |param|
         raise "Missing required argument: '#{param}'" unless params.include? param
       end
