@@ -10,12 +10,16 @@ class BudRESTServer
 
     if options[:rest_port]
       @server_thread = Thread.new do
-        server = WEBrick::HTTPServer.new Port: options[:rest_port]
-        server.mount "/", BudServlet
-        trap('INT') { server.stop }
-        server.start
+        @server = WEBrick::HTTPServer.new Port: options[:rest_port]
+        @server.mount "/", BudServlet
+        trap('INT') { @server.stop }
+        @server.start
       end
     end
+  end
+
+  def stop
+    @server.stop
   end
 
   class BudServlet < WEBrick::HTTPServlet::AbstractServlet
@@ -25,10 +29,11 @@ class BudRESTServer
         action = request.path[1..-1].split("/")[0]
         case action
         when "collections"
-          response.body = { tables: non_builtin_collections(Bud::BudTable) }.to_json
+          handle_request_get_collections(request, response)
         when "content"
           handle_request_get_content(request, response)
         when "rules"
+          # TODO
           raise "Unemplemented feature"
         else
           raise "Unrecognized action '#{action}' in path '#{request.path}'"
@@ -73,13 +78,17 @@ class BudRESTServer
     end
 
     private
-    def non_builtin_collections(klass=nil)
+    def handle_request_get_collections(request, response)
       names = $bud_instance.tables.keys - $bud_instance.builtin_tables.keys
-      if klass
-        names.keep_if do |name|
-          $bud_instance.tables[name].class == klass
-        end
-      end
+      collections = {
+        tables: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudTable },
+        scratches: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudScratch },
+        input_interfaces: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudInputInterface },
+        output_interfaces: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudOutputInterface },
+        channels: names.select { |name| name if $bud_instance.tables[name].class == Bud::BudChannel }
+      }
+      collections.delete_if { |k,v| v.empty? }
+      response.body = { collections: collections }.to_json
     end
 
     private
@@ -101,21 +110,31 @@ class BudRESTServer
     private
     def handle_request_add_collection(request, response)
       params = JSON.parse(request.query["params"])
-      ['type', 'name', 'keys', 'values'].each do |param|
+      ['type', 'collection_name', 'keys', 'values'].each do |param|
         raise "Missing required argument: '#{param}'" unless params.include? param
       end
 
       # parse keys and values columns
       key_cols = params['keys'].map(&:to_sym)
       val_cols = params['values'].map(&:to_sym)
+      collection_name = params['collection_name']
 
       case params['type']
       when "table"
-        $bud_instance.table params['name'].to_sym, key_cols => val_cols
-        response.body = { success: "Added table" }.to_json
+        $bud_instance.table collection_name.to_sym, key_cols => val_cols
+        response.body = { success: "Added table '#{collection_name}'" }.to_json
       when "scratch"
-      when "interface"
+        $bud_instance.scratch collection_name.to_sym, key_cols => val_cols
+        response.body = { success: "Added scratch '#{collection_name}'" }.to_json
+      when "input_interface"
+        $bud_instance.interface true, collection_name.to_sym, key_cols => val_cols
+        response.body = { success: "Added input interface '#{collection_name}'" }.to_json
+      when "output_interface"
+        $bud_instance.interface false, collection_name.to_sym, key_cols => val_cols
+        response.body = { success: "Added output interface '#{collection_name}'" }.to_json
       when "channel"
+        $bud_instance.channel collection_name.to_sym, key_cols => val_cols
+        response.body = { success: "Added channel '#{collection_name}'" }.to_json
       else
         raise "Unrecognized type of collection to add"
       end
@@ -135,14 +154,15 @@ class BudRESTServer
       when '<='
         collection <= rows
       when '<+'
+        # TODO
         raise "Unemplemented feature"
       when '<~'
+        # TODO
         raise "Unemplemented feature"
       else
         raise "Unexpected operation: '#{params['op']}'"
       end
       response.body = { success: "Added rows to collection '#{collection.tabname}'" }.to_json
-      # puts "\n[[[[[[[[[[[[here]]]]]]]]]]]]\n\n"
     end
 
     private
@@ -161,6 +181,7 @@ class BudRESTServer
 
     private
     def handle_request_add_rule(request, response)
+      # TODO
       params = JSON.parse(request.query["params"])
       ['lhs', 'op', 'rhs'].each do |param|
         raise "Missing required argument: '#{param}'" unless params.include? param
@@ -176,9 +197,9 @@ class BudRESTServer
     end
 
     private
-    def error_response(message, stack_trace=nil)
+    def error_response(message, backtrace=nil)
       error = { errors: message }
-      error[:stack_trace] = stack_trace if stack_trace
+      error[:stack_trace] = backtrace if backtrace
       return error.to_json
     end
   end
