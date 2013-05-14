@@ -47,10 +47,6 @@ class TestRestBud < Test::Unit::TestCase
     return parse_response(RestClient.delete url(resource), options(params))
   end
 
-  def tables
-    @bud_inst.tables
-  end
-
   def assert_contents(table, contents)
     assert_equal contents.size, table.length
     contents.each do |e|
@@ -58,6 +54,21 @@ class TestRestBud < Test::Unit::TestCase
     end
   end
 
+  # Bud methods
+  def tables
+    @bud_inst.tables
+  end
+
+  def get_rules
+    p $bud_instance.t_rules.to_a
+    $bud_instance.t_rules.to_a.map {|x| x[5]}
+  end
+
+  def assert_has_rule(lhs, op, rhs)
+    assert get_rules.include? "#{lhs} #{op} (#{rhs})"
+  end
+
+  # REST methods
   def add_collection(name, type, keys, values)
     data = post :add_collection, collection_name: name, type: type, keys: keys, values: values
     assert_response_contains(data, 'success')
@@ -77,7 +88,7 @@ class TestRestBud < Test::Unit::TestCase
     return data['content']
   end
 
-  def insert_row(collection, op, rows)
+  def insert_rows(collection, op, rows)
     data = post :add_rows, collection_name: collection, op: op, rows: rows
     assert_response_contains(data, 'success')
     assert_equal "Added rows to collection '#{collection}'", data['success']
@@ -87,6 +98,12 @@ class TestRestBud < Test::Unit::TestCase
     data = delete :remove_rows, collection_name: collection_name, rows: rows
     assert_response_contains(data, 'success')
     assert_equal "Removed rows from collection '#{collection_name}'", data['success']
+  end
+
+  def add_rule(lhs, op, rhs)
+    data = post :add_rule, lhs: lhs, op: op, rhs: rhs
+    assert_response_contains(data, 'success')
+    assert_equal 'Added rule to bud', data['success']
   end
 
   def setup
@@ -125,7 +142,7 @@ class TestRestBud < Test::Unit::TestCase
     assert_equal get_collections, {'tables' => [tabname.to_s]}
 
     # POST /insert
-    insert_row tabname, '<=', rows[0..1]
+    insert_rows tabname, '<=', rows[0..1]
     assert_contents tables[tabname], rows[0..1]
 
     # GET /content
@@ -169,17 +186,13 @@ class TestRestBud < Test::Unit::TestCase
     tabname2 = :test_table_2
     key_cols = [:test_key]
     val_cols = [:test_val]
-    rows = 4.times.map { |i| ["k#{i}", "v#{i}"] } # ['k1', 'v1']
+    rows = 4.times.map { |i| ["k#{i}", "v#{i}"] }
 
     # POST /add_collection
-    p $bud_instance.t_rules.inspected
-    post :add_collection, {type: 'table', collection_name: tabname1, keys: key_cols, values: val_cols}
-    post :add_collection, {type: 'table', collection_name: tabname2, keys: key_cols, values: val_cols}
-    post :add_rows, { collection_name: tabname1, op: '<=', rows: rows[0..1] }
-    data = post :add_rule, { lhs: tabname1, op: '<=', rhs: tabname2 } 
-    assert data.include?("success"), "Did not receive success message when adding a rule\n '#{data.each {|d| d.inspect}}'"
-    assert_equal "Added rule to bud", data["success"]
-    p $bud_instance.t_rules.inspected
+    add_collection tabname1, :table, key_cols, val_cols
+    add_collection tabname2, :table, key_cols, val_cols
+    insert_rows tabname1, '<=', rows[0..1]
+    add_rule tabname1, '<=', tabname2
+    assert_has_rule(tabname1, '<=', tabname2)
   end
 end
-
