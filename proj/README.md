@@ -1,6 +1,7 @@
 ## REST server inside Bud - API Documentation
 ##### Note
 * Only accepts and returns JSON data
+
 ##### Issues
 * Cannot remove a row yet
 * Cannot add rule or view list of rules yet
