@@ -3,9 +3,11 @@ require 'bud'
 require 'rest_bud'
 require 'test/unit'
 require 'rest-client'
+require 'rest_bud_helper'
 
 class RestBud
   include Bud
+  include BudRestHelper
 end
 
 
@@ -191,7 +193,6 @@ class TestRestBud < Test::Unit::TestCase
     assert_equal 'channel1', data["collections"]["channels"][0], "Tables list should include 'channel1'"
   end
 
-=begin
   def test_add_rule
     # test data
     tabname1 = :test_table_1
@@ -201,13 +202,14 @@ class TestRestBud < Test::Unit::TestCase
     rows = 4.times.map { |i| ["k#{i}", "v#{i}"] } # ['k1', 'v1']
 
     # POST /add_collection
+    p $bud_instance.t_rules.inspected
     post :add_collection, {type: 'table', collection_name: tabname1, keys: key_cols, values: val_cols}
     post :add_collection, {type: 'table', collection_name: tabname2, keys: key_cols, values: val_cols}
     post :add_rows, { collection_name: tabname1, op: '<=', rows: rows[0..1] }
     data = post :add_rule, { lhs: tabname1, op: '<=', rhs: tabname2 } 
     assert data.include?("success"), "Did not receive success message when adding a rule\n '#{data.each {|d| d.inspect}}'"
     assert_equal "Added rule to bud", data["success"]
+    p $bud_instance.t_rules.inspected
   end
-=end
 end
 

@@ -183,19 +183,15 @@ class BudRESTServer
 
     private
     def handle_request_add_rule(request, response)
-      # TODO
       params = JSON.parse(request.query["params"])
       ['lhs', 'op', 'rhs'].each do |param|
         raise "Missing required argument: '#{param}'" unless params.include? param
       end
-      lhs = $bud_instance.tables[params['lhs'].to_sym]
-      raise "Collection '#{params['lhs']} does not exist!" if lhs.nil?
 
-      parser = RubyParser.for_current_ruby
       rule = "#{params['lhs']} #{params['op']} #{params['rhs']}"
-      ast = parser.parse rule
-
-      raise "Unemplemented feature"
+      RestBud.add_rule(rule)
+      $bud_instance.reload
+      response.body = { success: "Added rule to bud" }.to_json
     end
 
     private
