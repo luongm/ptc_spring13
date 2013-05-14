@@ -34,6 +34,9 @@ class BudRESTServer
       'add_rows' => :add_rows,
       'add_rule' => :add_rule
     }
+    @@delete_routes = {
+      'remove_rows' => :remove_rows
+    }
 
     def handle_request(routes, request, response)
       response.status = 200
@@ -61,19 +64,8 @@ class BudRESTServer
     end
 
     def do_DELETE(request, response)
-      response.status = 200
       parse_header_params request
-      begin
-        action = request.path[1..-1].split("/")[0]
-        case action
-        when "remove_rows"
-          handle_request_remove_rows(request, response)
-        else
-          raise "Unrecognized action '#{action}' in path '#{request.path}'"
-        end
-      rescue Exception => e
-        response.body = error_response(e.message)
-      end
+      handle_request(@@delete_routes, request, response)
     end
 
     private
@@ -166,17 +158,14 @@ class BudRESTServer
       @response = { success: "Added rule to bud" }
     end
 
-    def handle_request_remove_rows(request, response)
-      ['collection_name', 'rows'].each do |param|
-        raise "Missing required argument: '#{param}'" unless @params.include? param
-      end
-      collection = $bud_instance.tables[@params['collection_name'].to_sym]
-      raise "Collection '#{@params['collection_name']} does not exist!" if collection.nil?
+    # DELETE methods
+    def remove_rows(request)
+      require_param_keys ['collection_name', 'rows']
+      collection = get_collection(@params['collection_name'])
 
-      rows = @params['rows']
-      collection <- rows
+      collection <- @params['rows']
       collection.tick
-      response.body = { success: "Removed rows from collection '#{collection.tabname}'" }.to_json
+      @response = { success: "Removed rows from collection '#{collection.tabname}'" }
     end
 
     def error_response(message, backtrace=nil)
