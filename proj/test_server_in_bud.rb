@@ -12,6 +12,14 @@ end
 class TestRestBud < Test::Unit::TestCase
   @@port = 3000
 
+  def error_message(msg, data=nil)
+    "[#{@action} /#{@resource}]: #{msg} #{"(#{data})" unless data.nil?}"
+  end
+
+  def assert_response_contains(response, key)
+    assert response.include?(key), error_message("Expected response to contain #{key}", response)
+  end
+
   def url(resource)
     "http://localhost:#{@@port}/#{resource}"
   end
@@ -26,28 +34,21 @@ class TestRestBud < Test::Unit::TestCase
   end
 
   def get(resource, params={})
+    @action = 'GET'
+    @resource = resource
     return parse_response(RestClient.get url(resource), options(params))
   end
 
   def post(resource, params={})
+    @action = 'POST'
+    @resource = resource
     return parse_response(RestClient.post url(resource), options(params))
   end
 
   def delete (resource, params={})
+    @action = 'DELETE'
+    @resource = resource
     return parse_response(RestClient.delete url(resource), options(params))
-  end
-
-  def setup
-    @bud_inst = RestBud.new
-    @@port = @@port+1
-    @rest_bud = BudRESTServer.new @bud_inst, rest_port: @@port
-    @bud_inst.start
-    sleep 1
-  end
-
-  def teardown
-    @bud_inst.stop
-    @rest_bud.stop
   end
 
   def tables
@@ -63,36 +64,46 @@ class TestRestBud < Test::Unit::TestCase
 
   def add_collection(name, type, keys, values)
     data = post :add_collection, collection_name: name, type: type, keys: keys, values: values
-
-    assert data.include?('success'), "Did not receive success message when adding table\n '#{data.inspect}'"
-    assert tables.include?(name), "Bud instance should include the added table's name"
+    assert_response_contains(data, 'success')
+    assert tables.include?(name), "[POST /add_collection]: Bud instance should include the added table's name"
     return data
   end
 
   def get_collections
     data = get :collections
-    assert data.include?('collections'), "Expect response to include 'collections' when 'GET /collections'\n'#{data.inspect}'"
+    assert_response_contains(data, 'collections')
     return data['collections']
   end
 
   def get_content(tabname)
     data = get :content, { collection_name: tabname }
-    assert data.include?('content'), "Expect the result to contain the 'content'\n'#{data.inspect}'"
+    assert_response_contains(data, 'content')
     return data['content']
   end
 
   def insert_row(collection, op, rows)
     data = post :add_rows, collection_name: collection, op: op, rows: rows
-
-    assert data.include?('success'), "Did not receive success message when add a row into '#{collection}'\n #{data.inspect}"
+    assert_response_contains(data, 'success')
     assert_equal "Added rows to collection '#{collection}'", data['success']
   end
 
   def remove_rows(collection_name, rows)
     data = delete :remove_rows, collection_name: collection_name, rows: rows
+    assert_response_contains(data, 'success')
+    assert_equal "Removed rows from collection '#{collection_name}'", data['success']
+  end
 
-    assert data.include?('success'), "Did not receive success message when remove a row from '#{collection_name}'\n '#{data.each {|d| d.inspect}}'"
-    assert_equal "Removed rows to collection '#{collection_name}'", data['success']
+  def setup
+    @@port = @@port+1
+    @bud_inst = RestBud.new
+    @rest_bud = BudRESTServer.new @bud_inst, rest_port: @@port
+    @bud_inst.start
+    sleep 1
+  end
+
+  def teardown
+    @bud_inst.stop
+    @rest_bud.stop
   end
 
   def test_basic

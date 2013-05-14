@@ -178,7 +178,7 @@ class BudRESTServer
       rows = params['rows']
       collection <- rows
       collection.tick
-      response.body = { success: "Removed rows to collection '#{collection.tabname}'" }.to_json
+      response.body = { success: "Removed rows from collection '#{collection.tabname}'" }.to_json
     end
 
     private
