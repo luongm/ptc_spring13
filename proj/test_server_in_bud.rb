@@ -161,30 +161,6 @@ class TestRestBud < Test::Unit::TestCase
         'output_interfaces' => ['output1'],
         'channels' => ['channel1']
     }
-
-    data = get :collections
-    assert data.include?("collections"), "Expect response to include 'collections' when 'GET /collections'\n'#{data.inspect}'"
-    assert_equal 5, data["collections"].count, "Should only have one type of collection"
-
-    assert data["collections"].include?("tables"), "Type 'tables' not in list\n'#{data.inspect}'"
-    assert_equal 1, data["collections"]["tables"].count, "Should only have 1 table"
-    assert_equal 'table1', data["collections"]["tables"][0], "Tables list should include 'table1'"
-
-    assert data["collections"].include?("scratches"), "Type 'scratches' not in list\n'#{data.inspect}'"
-    assert_equal 1, data["collections"]["scratches"].count, "Should only have 1 scratch"
-    assert_equal 'scratch1', data["collections"]["scratches"][0], "Tables list should include 'scratch1'"
-
-    assert data["collections"].include?("input_interfaces"), "Type 'input_interfaces' not in list\n'#{data.inspect}'"
-    assert_equal 1, data["collections"]["input_interfaces"].count, "Should only have 1 input interface"
-    assert_equal 'input1', data["collections"]["input_interfaces"][0], "Tables list should include 'input1'"
-
-    assert data["collections"].include?("output_interfaces"), "Type 'output_interfaces' not in list\n'#{data.inspect}'"
-    assert_equal 1, data["collections"]["output_interfaces"].count, "Should only have 1 output interface"
-    assert_equal 'output1', data["collections"]["output_interfaces"][0], "Tables list should include 'output1'"
-
-    assert data["collections"].include?("channels"), "Type 'tables' not in list\n'#{data.inspect}'"
-    assert_equal 1, data["collections"]["channels"].count, "Should only have 1 channel"
-    assert_equal 'channel1', data["collections"]["channels"][0], "Tables list should include 'channel1'"
   end
 
   def test_add_rule
