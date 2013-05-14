@@ -69,38 +69,38 @@ class TestRestBud < Test::Unit::TestCase
   end
 
   # REST methods
-  def add_collection(name, type, keys, values)
+  def rest_add_collection(name, type, keys, values)
     data = post :add_collection, collection_name: name, type: type, keys: keys, values: values
     assert_response_contains(data, 'success')
     assert tables.include?(name), "[POST /add_collection]: Bud instance should include the added table's name"
     return data
   end
 
-  def get_collections
+  def rest_get_collections
     data = get :collections
     assert_response_contains(data, 'collections')
     return data['collections']
   end
 
-  def get_content(tabname)
+  def rest_get_collection_content(tabname)
     data = get :content, { collection_name: tabname }
     assert_response_contains(data, 'content')
     return data['content']
   end
 
-  def insert_rows(collection, op, rows)
+  def rest_insert_rows(collection, op, rows)
     data = post :add_rows, collection_name: collection, op: op, rows: rows
     assert_response_contains(data, 'success')
     assert_equal "Added rows to collection '#{collection}'", data['success']
   end
 
-  def remove_rows(collection_name, rows)
+  def rest_remove_rows(collection_name, rows)
     data = delete :remove_rows, collection_name: collection_name, rows: rows
     assert_response_contains(data, 'success')
     assert_equal "Removed rows from collection '#{collection_name}'", data['success']
   end
 
-  def add_rule(lhs, op, rhs)
+  def rest_add_rule(lhs, op, rhs)
     data = post :add_rule, lhs: lhs, op: op, rhs: rhs
     assert_response_contains(data, 'success')
     assert_equal 'Added rule to bud', data['success']
@@ -133,20 +133,20 @@ class TestRestBud < Test::Unit::TestCase
     rows = 4.times.map { |i| ["k#{i}a", "k#{i}b", "v#{i}a", "v#{i}b"] } # ['k1a', 'k1b', 'v1a', 'v1b']
 
     # POST /add_collection
-    add_collection tabname, :table, key_cols, val_cols
+    rest_add_collection tabname, :table, key_cols, val_cols
 
     assert_equal key_cols, tables[tabname].key_cols
     assert_equal val_cols, tables[tabname].val_cols
 
     # GET /collections
-    assert_equal get_collections, {'tables' => [tabname.to_s]}
+    assert_equal rest_get_collections, {'tables' => [tabname.to_s]}
 
     # POST /insert
-    insert_rows tabname, '<=', rows[0..1]
+    rest_insert_rows tabname, '<=', rows[0..1]
     assert_contents tables[tabname], rows[0..1]
 
     # GET /content
-    assert_contents get_content(tabname), rows[0..1]
+    assert_contents rest_get_collection_content(tabname), rows[0..1]
 
     # TODO test for <+ and <~
     # data = post :add_rows, { collection_name: tabname, op: '<~', rows: rows[2..2] }
@@ -154,7 +154,7 @@ class TestRestBud < Test::Unit::TestCase
     # assert @bud_inst.tables[tabname].include?(rows[2]), "Expected rows #{rows[2]} to appear in table '#{tabname}' storage"
 
     # DELETE /remove
-    remove_rows(tabname, [rows[1]])
+    rest_remove_rows(tabname, [rows[1]])
     assert_contents tables[tabname], [rows[0]]
   end
 
@@ -164,14 +164,14 @@ class TestRestBud < Test::Unit::TestCase
     val_cols = [:test_val]
 
     # Add different kinds of collections: table, scratch, input/output interface, channel
-    add_collection :table1, :table, key_cols, val_cols
-    add_collection :scratch1, :scratch, key_cols, val_cols
-    add_collection :input1, :input_interface, key_cols, val_cols
-    add_collection :output1, :output_interface, key_cols, val_cols
-    add_collection :channel1, :channel, key_cols+[:@loc], val_cols
+    rest_add_collection :table1, :table, key_cols, val_cols
+    rest_add_collection :scratch1, :scratch, key_cols, val_cols
+    rest_add_collection :input1, :input_interface, key_cols, val_cols
+    rest_add_collection :output1, :output_interface, key_cols, val_cols
+    rest_add_collection :channel1, :channel, key_cols+[:@loc], val_cols
 
     # Get the list of collections
-    assert_equal get_collections, {
+    assert_equal rest_get_collections, {
         'tables' => ['table1'],
         'scratches' => ['scratch1'],
         'input_interfaces' => ['input1'],
@@ -189,10 +189,10 @@ class TestRestBud < Test::Unit::TestCase
     rows = 4.times.map { |i| ["k#{i}", "v#{i}"] }
 
     # POST /add_collection
-    add_collection tabname1, :table, key_cols, val_cols
-    add_collection tabname2, :table, key_cols, val_cols
-    insert_rows tabname1, '<=', rows[0..1]
-    add_rule tabname1, '<=', tabname2
+    rest_add_collection tabname1, :table, key_cols, val_cols
+    rest_add_collection tabname2, :table, key_cols, val_cols
+    rest_insert_rows tabname1, '<=', rows[0..1]
+    rest_add_rule tabname1, '<=', tabname2
     assert_has_rule(tabname1, '<=', tabname2)
   end
 end
