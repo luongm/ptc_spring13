@@ -4,18 +4,14 @@ require 'webrick'
 require 'json'
 
 class BudRESTServer
-  def initialize(klass, bud_instance, options={})
-    $bud_class = RestBud
+  def initialize(klass, bud_instance, port)
     $bud_instance = bud_instance
-    $rule_num = 0
 
-    if options[:rest_port]
-      @server_thread = Thread.new do
-        @server = WEBrick::HTTPServer.new Port: options[:rest_port]
-        @server.mount "/", BudServlet
-        trap('INT') { @server.stop }
-        @server.start
-      end
+    @server_thread = Thread.new do
+      @server = WEBrick::HTTPServer.new Port: port
+      @server.mount "/", BudServlet
+      trap('INT') { @server.stop }
+      @server.start
     end
   end
 
@@ -153,7 +149,7 @@ class BudRESTServer
     def add_rule(request)
       require_param_keys ['lhs', 'op', 'rhs']
 
-      $bud_class.add_rule "#{@params['lhs']} #{@params['op']} #{@params['rhs']}"
+      RestBud.add_rule "#{@params['lhs']} #{@params['op']} #{@params['rhs']}"
       $bud_instance.reload
       @response = { success: "Added rule to bud" }
     end

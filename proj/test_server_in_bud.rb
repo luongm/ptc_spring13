@@ -120,7 +120,7 @@ class TestRestBud < Test::Unit::TestCase
 
     @@port = @@port+1
     @bud_inst = RestBud.new
-    @rest_bud = BudRESTServer.new RestBud, @bud_inst, rest_port: @@port
+    @rest_bud = BudRESTServer.new RestBud, @bud_inst, @@port
     @bud_inst.start
     sleep 1
   end
