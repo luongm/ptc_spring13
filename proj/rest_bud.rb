@@ -31,14 +31,15 @@ class BudRESTServer
         action = request.path[1..-1].split("/")[0]
         case action
         when "collections"
-          response.body = get_collections(request).to_json
+          get_collections(request)
         when "content"
-          handle_request_get_content(request, response)
+          get_content(request)
         when "rules"
-          handle_request_get_rules(request, response)
+          get_rules(request)
         else
           raise "Unrecognized action '#{action}' in path '#{request.path}'"
         end
+        response.body = @response.to_json
       rescue Exception => e
         response.body = error_response(e.message)
       end
@@ -94,26 +95,19 @@ class BudRESTServer
         results = names.select { |name| name if $bud_instance.tables[name].class == klass }
         collections[sym] = results unless results.empty?
       end
-      return { collections: collections }
+      @response = { collections: collections }
     end
 
-    def handle_request_get_content(request, response)
-      ['collection_name'].each do |param|
-        raise "Missing required argument: '#{param}'" unless @params.include? param
-      end
-      collection = $bud_instance.tables[@params['collection_name'].to_sym]
-      raise "Collection '#{@params['collection_name']} does not exist!" if collection.nil?
-
-      content = []
-      collection.each do |row|
-        content << row.to_a
-      end
-      response.body = { content: content }.to_json
+    def get_content(request)
+      require_param_keys ['collection_name']
+      collection_name = @params['collection_name']
+      collection = $bud_instance.tables[collection_name.to_sym]
+      raise "Collection '#{collection_name} does not exist!" if collection.nil?
+      @response = { content: collection.to_a.map(&:to_a) }
     end
 
-    def handle_request_get_rules(request, response)
-      rules = $bud_instance.t_rules.to_a.map {|x| x[5]}
-      response.body = { rules: rules }.to_json
+    def get_rules(request)
+      @response = { rules: $bud_instance.t_rules.to_a.map {|x| x[5]} }
     end
 
     def handle_request_add_collection(request, response)
@@ -207,6 +201,12 @@ class BudRESTServer
 
     def parse_query_params(request)
       @params = JSON.parse(request.query["params"])
+    end
+
+    def require_param_keys(keys)
+      keys.each do |param|
+        raise "Missing required argument: '#{param}'" unless @params.include? param
+      end
     end
   end
 end
