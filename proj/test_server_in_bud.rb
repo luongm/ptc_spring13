@@ -64,7 +64,9 @@ class TestRestBud < Test::Unit::TestCase
   end
 
   def assert_has_rule(lhs, op, rhs)
-    assert get_rules.include? "#{lhs} #{op} (#{rhs})"
+    # NOTE this will sometimes fail because the rhs of rule might get rewritten
+    rule = "#{lhs} #{op} (#{rhs})"
+    assert get_rules.include?(rule), "Rule '#{rule}' not found in #{get_rules}"
   end
 
   # REST methods
@@ -111,6 +113,16 @@ class TestRestBud < Test::Unit::TestCase
     assert_equal 'Added rule to bud', data['success']
   end
 
+  def rest_tick(times=nil)
+    data = if times
+      post :tick, times: times
+    else
+      post :tick
+    end
+    assert_response_contains(data, 'success')
+    assert_equal "Ticked the bud instance #{times or 1} times", data['success']
+  end
+
   def setup
     c = Class.new do
       include Bud
@@ -146,21 +158,32 @@ class TestRestBud < Test::Unit::TestCase
     # GET /collections
     assert_equal rest_get_collections, {'tables' => [tabname.to_s]}
 
-    # POST /insert
+    # POST /add_rows with <=
     rest_insert_rows tabname, '<=', rows[0..1]
     assert_contents tables[tabname], rows[0..1]
 
     # GET /content
     assert_contents rest_get_collection_content(tabname), rows[0..1]
 
-    # TODO test for <+ and <~
-    # data = post :add_rows, { collection_name: tabname, op: '<~', rows: rows[2..2] }
-    # assert_equal 3, @bud_inst.tables[tabname].length
-    # assert @bud_inst.tables[tabname].include?(rows[2]), "Expected rows #{rows[2]} to appear in table '#{tabname}' storage"
-
     # DELETE /remove
-    rest_remove_rows(tabname, [rows[1]])
-    assert_contents tables[tabname], [rows[0]]
+    rest_remove_rows(tabname, [rows[0]])
+    assert_contents tables[tabname], rows[0..1]
+    rest_tick(2) # NOTE doesn't remove if only tick once
+    assert_contents tables[tabname], rows[1..1]
+
+    # POST /add_rows with <+
+    rest_insert_rows tabname, '<+', rows[2..2]
+    assert_contents tables[tabname], rows[1..1]
+    rest_tick
+    assert_contents tables[tabname], rows[1..2]
+
+    # POST /add_rows with <~
+    rest_insert_rows :stdio, '<~', [[rows]]
+    puts rows.inspect
+    out = capture_stdout do
+      rest_tick
+    end
+    assert_equal rows.flatten.join("\n") + "\n", out.string, "All rows should be printed out when 'stdio <~ [[rows]]'"
   end
 
   def test_add_collections
@@ -187,17 +210,23 @@ class TestRestBud < Test::Unit::TestCase
 
   def test_add_rule
     # test data
-    tabname1 = :test_table_1
-    tabname2 = :test_table_2
+    tabnames = 3.times.map { |i| "test_table_#{i}".to_sym }
     key_cols = [:test_key]
     val_cols = [:test_val]
     rows = 4.times.map { |i| ["k#{i}", "v#{i}"] }
 
-    # POST /add_collection
-    rest_add_collection tabname1, :table, key_cols, val_cols
-    rest_add_collection tabname2, :table, key_cols, val_cols
-    rest_insert_rows tabname1, '<=', rows[0..1]
-    rest_add_rule tabname1, '<=', tabname2
-    assert_has_rule(tabname1, '<=', tabname2)
+    tabnames.each do |tabname|
+      rest_add_collection tabname, :table, key_cols, val_cols
+    end
+    rest_insert_rows tabnames[0], '<=', rows[0..1]
+    rest_insert_rows tabnames[1], '<=', rows[1..2]
+
+    # POST /add_rule
+    rest_add_rule tabnames[2], '<=', tabnames[0]
+    assert_has_rule tabnames[2], '<=', tabnames[2]
+
+    # check content of tabnames[2]
+    rest_tick # TODO fails here
+    assert_contents tables[tabnames[2]], rows[0..2]
   end
 end

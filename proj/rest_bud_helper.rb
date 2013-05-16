@@ -1,5 +1,7 @@
 require 'rubygems'
+gem 'ruby_parser', '>= 3.0.2'
 require 'ruby_parser'
+require 'stringio'
 
 class Class
   def add_rule(rule)
@@ -27,6 +29,20 @@ class Class
       end
       __bloom_asts__[meth_name] = ast
       define_method(meth_name.to_sym, eval("proc {#{rule}}"))
+  end
+end
+
+module Kernel
+  def capture_stdout
+    out = StringIO.new
+    $stdout = out
+    yield
+    reset_stdout and return out
+  ensure
+    reset_stdout
+  end
+  def reset_stdout
+    $stdout = STDOUT
   end
 end
 

@@ -1,5 +1,3 @@
-gem 'ruby_parser', '>= 3.0.2'
-require 'ruby_parser'
 require 'webrick'
 require 'json'
 
@@ -26,6 +24,7 @@ class BudRESTServer
       'rules' => :get_rules
     }
     @@post_routes = {
+      'tick' => :tick,
       'add_collection' => :add_collection,
       'add_rows' => :add_rows,
       'add_rule' => :add_rule
@@ -45,7 +44,7 @@ class BudRESTServer
           raise "Unrecognized action '#{action}' in path '#{request.path}'"
         end
       rescue Exception => e
-        response.body = error_response(e.message)
+        response.body = error_response(e)
       end
     end
 
@@ -93,6 +92,13 @@ class BudRESTServer
     end
 
     # POST methods
+    def tick(request)
+      @DEBUG = true
+      n = @params.include?('times') ? @params['times'].to_i : 1
+      n.times { $bud_instance.tick }
+      @response = { success: "Ticked the bud instance #{n} times" }
+    end
+
     def add_collection(request)
       require_param_keys ['type', 'collection_name', 'keys', 'values']
 
@@ -135,11 +141,9 @@ class BudRESTServer
         collection <= rows
         collection.flush_deltas
       when '<+'
-        # TODO
-        raise "Unemplemented feature"
+        collection <+ rows
       when '<~'
-        # TODO
-        raise "Unemplemented feature"
+        collection <~ rows
       else
         raise "Unexpected operation: '#{@params['op']}'"
       end
@@ -160,13 +164,12 @@ class BudRESTServer
       collection = get_collection(@params['collection_name'])
 
       collection <- @params['rows']
-      collection.tick
       @response = { success: "Removed rows from collection '#{collection.tabname}'" }
     end
 
-    def error_response(message, backtrace=nil)
-      error = { errors: message }
-      error[:stack_trace] = backtrace if backtrace
+    def error_response(e)
+      error = { errors: e.message }
+      error[:stack_trace] = e.backtrace if @DEBUG
       return error.to_json
     end
 
