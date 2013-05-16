@@ -222,11 +222,16 @@ class TestRestBud < Test::Unit::TestCase
     rest_insert_rows tabnames[1], '<=', rows[1..2]
 
     # POST /add_rule
-    rest_add_rule tabnames[2], '<=', tabnames[0]
-    assert_has_rule tabnames[2], '<=', tabnames[0]
+    rest_add_rule tabnames[2], '<+', "(#{tabnames[0]} * #{tabnames[1]}).notin(test_key: :test_key)"
+    assert_has_rule tabnames[2], '<+', "(#{tabnames[0]} * #{tabnames[1]}).notin(test_key: :test_key)"
 
     # check content of tabnames[2]
-    rest_tick # TODO fails here
-    assert_contents tables[tabnames[2]], rows[0..1]
+    rest_tick
+    assert_contents tables[tabnames[2]], [rows[0]]
+
+    rest_insert_rows tabnames[0], '<+', [rows[3]]
+    assert_contents tables[tabnames[2]], [rows[0]]
+    rest_tick
+    assert_contents tables[tabnames[2]], [rows[0], rows[3]]
   end
 end
