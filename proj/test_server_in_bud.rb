@@ -9,7 +9,17 @@ class TestRestBud < Test::Unit::TestCase
   @@port = 3000
 
   def error_message(msg, data=nil)
-    "[#{@action} /#{@resource}]: #{msg} #{"(#{data})" unless data.nil?}"
+    ret = "[#{@action} /#{@resource}]: #{msg}\n"
+    details = ""
+    if data
+      if data.include? 'errors'
+        details << "Error message: '#{data['errors']}'\n"
+      end
+      if data.include? 'stack_trace'
+        details << data['stack_trace'].join("\n\t")
+      end
+    end
+    ret + details
   end
 
   def assert_response_contains(response, key)

@@ -151,6 +151,7 @@ class BudRESTServer
     end
 
     def add_rule(request)
+      @DEBUG = true
       require_param_keys ['lhs', 'op', 'rhs']
 
       RestBud.add_rule "#{@params['lhs']} #{@params['op']} #{@params['rhs']}"
