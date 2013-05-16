@@ -48,6 +48,15 @@ end
 
 module BudRestHelper
   def reload
-    initialize
+    @declarations = self.class.instance_methods.select {|m| m =~ /^__bloom__.+$/}.map {|m| m.to_s}
+    do_rewrite
+    if toplevel == self
+      # initialize per-stratum state
+      num_strata = @stratified_rules.length
+      @scanners = num_strata.times.map{{}}
+      @push_sources = num_strata.times.map{{}}
+      @push_joins = num_strata.times.map{[]}
+      @merge_targets = num_strata.times.map{Set.new}
+    end
   end
 end
