@@ -223,10 +223,10 @@ class TestRestBud < Test::Unit::TestCase
 
     # POST /add_rule
     rest_add_rule tabnames[2], '<=', tabnames[0]
-    assert_has_rule tabnames[2], '<=', tabnames[2]
+    assert_has_rule tabnames[2], '<=', tabnames[0]
 
     # check content of tabnames[2]
     rest_tick # TODO fails here
-    assert_contents tables[tabnames[2]], rows[0..2]
+    assert_contents tables[tabnames[2]], rows[0..1]
   end
 end
