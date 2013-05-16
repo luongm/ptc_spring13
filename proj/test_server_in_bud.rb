@@ -73,9 +73,7 @@ class TestRestBud < Test::Unit::TestCase
     $bud_instance.t_rules.to_a.map {|x| x[5]}
   end
 
-  def assert_has_rule(lhs, op, rhs)
-    # NOTE this will sometimes fail because the rhs of rule might get rewritten
-    rule = "#{lhs} #{op} (#{rhs})"
+  def assert_has_rule(rule)
     assert get_rules.include?(rule), "Rule '#{rule}' not found in #{get_rules}"
   end
 
@@ -121,6 +119,11 @@ class TestRestBud < Test::Unit::TestCase
     data = post :add_rule, lhs: lhs, op: op, rhs: rhs
     assert_response_contains(data, 'success')
     assert_equal 'Added rule to bud', data['success']
+
+    assert_response_contains(data, 'rewritten_rule')
+    assert_not_nil data['rewritten_rule'], "Expected a non-nil rule, got #{data['rewritten_rule']}"
+    assert_not_equal "", data['rewritten_rule'], "Expected a non-empty rule, got #{data['rewritten_rule']}"
+    return data['rewritten_rule']
   end
 
   def rest_tick(times=nil)
@@ -189,7 +192,6 @@ class TestRestBud < Test::Unit::TestCase
 
     # POST /add_rows with <~
     rest_insert_rows :stdio, '<~', [[rows]]
-    puts rows.inspect
     out = capture_stdout do
       rest_tick
     end
@@ -232,16 +234,16 @@ class TestRestBud < Test::Unit::TestCase
     rest_insert_rows tabnames[1], '<=', rows[1..2]
 
     # POST /add_rule
-    rest_add_rule tabnames[2], '<+', "(#{tabnames[0]} * #{tabnames[1]}).notin(test_key: :test_key)"
-    assert_has_rule tabnames[2], '<+', "(#{tabnames[0]} * #{tabnames[1]}).notin(test_key: :test_key)"
+    rewritten_rule = rest_add_rule tabnames[2], '<+', "#{tabnames[0]}.notin(#{tabnames[1]}, test_key: :test_key)"
+    assert_has_rule rewritten_rule
 
     # check content of tabnames[2]
-    rest_tick
+    rest_tick 2
     assert_contents tables[tabnames[2]], [rows[0]]
 
     rest_insert_rows tabnames[0], '<+', [rows[3]]
     assert_contents tables[tabnames[2]], [rows[0]]
-    rest_tick
+    rest_tick 2
     assert_contents tables[tabnames[2]], [rows[0], rows[3]]
   end
 end
