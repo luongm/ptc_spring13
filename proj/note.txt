@@ -1,1 +1,0 @@
-http://rubyit.wordpress.com/2011/07/25/basic-rest-server-with-webrick/
