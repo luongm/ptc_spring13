@@ -93,7 +93,6 @@ class BudRESTServer
 
     # POST methods
     def tick(request)
-      @DEBUG = true
       n = @params.include?('times') ? @params['times'].to_i : 1
       n.times { $bud_instance.tick }
       @response = { success: "Ticked the bud instance #{n} times" }
@@ -151,12 +150,15 @@ class BudRESTServer
     end
 
     def add_rule(request)
-      @DEBUG = true
       require_param_keys ['lhs', 'op', 'rhs']
+
+      old_rules = $bud_instance.t_rules.to_a.map {|x| x[5]}
 
       RestBud.add_rule "#{@params['lhs']} #{@params['op']} #{@params['rhs']}"
       $bud_instance.reload
-      @response = { success: "Added rule to bud" }
+
+      rewritten_rule = ($bud_instance.t_rules.to_a.map {|x| x[5]} - old_rules)[0]
+      @response = { success: "Added rule to bud", rewritten_rule: rewritten_rule }
     end
 
     # DELETE methods
